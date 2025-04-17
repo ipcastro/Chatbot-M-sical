@@ -3,23 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot Músical</title>
+    <title>Chatbot Musical</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h1>Chatbot Músical</h1>
+            <h1>Chatbot Musical</h1>
             <p>Seu guia musical virtual</p>
         </div>
         <div class="chat-messages" id="chat-messages">
             <!-- Mensagens serão inseridas aqui via JavaScript -->
+            <div class="message bot-message">Olá! Sou seu chatbot musical. Como posso ajudar com suas dúvidas sobre música hoje?</div>
         </div>
         <div class="chat-input">
             <input type="text" id="user-input" placeholder="Digite sua pergunta sobre música...">
             <button id="send-button">Enviar</button>
+            <button id="history-button">Histórico</button>
         </div>
     </div>
+    
+    <!-- Script para API do Gemini -->
+    <script>
+        // Configuração da API
+        const API_KEY = 'AIzaSyCAWuWXyYs7uxzED5Db6ep0O10SxWL7WlQ';
+        const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+        
+        // Inicializar API do Gemini
+        window.callGeminiAPI = async function(message) {
+            try {
+                const response = await fetch(`${API_URL}?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `Você é um chatbot musical especializado. Responda de forma amigável e informativa sobre qualquer assunto relacionado à música. Mantenha suas respostas curtas e diretas. Responda em português do Brasil. Pergunta do usuário: ${message}`
+                            }]
+                        }]
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Erro na API:', errorText);
+                    throw new Error(`Erro na API: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Resposta da API:', data);
+                
+                // Extrair texto da resposta
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                    return data.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error('Formato de resposta inesperado');
+                }
+            } catch (error) {
+                console.error('Erro ao chamar API:', error);
+                return 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.';
+            }
+        }
+    </script>
+    
     <script src="script.js"></script>
 </body>
-</html> 
+</html>
