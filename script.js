@@ -79,7 +79,7 @@ async function sendMessage() {
     
     try {
         // Envia a mensagem para o servidor com o histórico da API
-        const response = await fetch('/chat', {
+        const response = await fetch('https://chatbot-m-sical.onrender.com/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
