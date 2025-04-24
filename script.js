@@ -4,8 +4,11 @@ const userInput = document.getElementById('user-input');
 const sendButton = document.getElementById('send-button');
 const historyButton = document.getElementById('history-button');
 
-// Array para armazenar o histórico de conversas
+// Array para armazenar o histórico de conversas para exibição
 const conversationHistory = [];
+
+// Array para armazenar o histórico no formato da API Gemini
+let apiChatHistory = [];
 
 // Função para rolar automaticamente para a última mensagem
 function scrollToBottom() {
@@ -16,6 +19,7 @@ function scrollToBottom() {
 function showTypingIndicator() {
     const typingDiv = document.createElement('div');
     typingDiv.className = 'message bot-message typing-indicator';
+    typingDiv.id = 'typing-indicator';
     typingDiv.innerHTML = '<span class="typing-dots">Digitando</span>';
     chatMessages.appendChild(typingDiv);
     scrollToBottom();
@@ -23,8 +27,11 @@ function showTypingIndicator() {
 }
 
 // Função para remover o indicador de "digitando..."
-function removeTypingIndicator(typingIndicator) {
-    typingIndicator.remove();
+function removeTypingIndicator() {
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
 }
 
 // Função para adicionar mensagem ao chat
@@ -33,63 +40,78 @@ function addMessage(message, isUser = false) {
     messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
     messageDiv.textContent = message;
     chatMessages.appendChild(messageDiv);
+    
+    // Adiciona ao histórico de exibição
     conversationHistory.push({ 
         message, 
         isUser,
         timestamp: new Date().toLocaleTimeString()
     });
+    
     scrollToBottom();
 }
 
-// Função para gerar resposta usando a API do Gemini
-async function generateResponse(userMessage) {
-    try {
-        // Usar a função callGeminiAPI definida no index.html
-        if (!window.callGeminiAPI) {
-            throw new Error('API Gemini não está inicializada. Por favor, recarregue a página.');
-        }
-        
-        return await window.callGeminiAPI(userMessage);
-    } catch (error) {
-        console.error('Erro ao gerar resposta:', error);
-        return 'Desculpe, tive um problema ao processar sua pergunta. Por favor, tente novamente.';
-    }
+// Função para mostrar erro no chat
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'message error-message';
+    errorDiv.textContent = message;
+    chatMessages.appendChild(errorDiv);
+    scrollToBottom();
 }
 
-// Função para enviar mensagem
+// Função para enviar mensagem ao servidor
 async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
 
-    // Verifica se a API Gemini está disponível
-    if (!window.callGeminiAPI) {
-        addMessage('Desculpe, a API Gemini não está inicializada. Por favor, recarregue a página.');
-        return;
-    }
-
     // Desabilita o input e o botão durante o processamento
     userInput.disabled = true;
     sendButton.disabled = true;
+    sendButton.textContent = 'Enviando...';
     
-    // Adiciona a mensagem do usuário
+    // Adiciona a mensagem do usuário à interface
     addMessage(message, true);
     userInput.value = '';
     
     // Mostra o indicador de digitação
-    const typingIndicator = showTypingIndicator();
+    showTypingIndicator();
     
     try {
-        // Gera e adiciona a resposta do bot
-        const response = await generateResponse(message);
-        removeTypingIndicator(typingIndicator);
-        addMessage(response);
+        // Envia a mensagem para o servidor com o histórico da API
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                message: message,
+                history: apiChatHistory
+            })
+        });
+        
+        // Remove o indicador de digitação
+        removeTypingIndicator();
+        
+        // Processa a resposta
+        if (!response.ok) {
+            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Atualiza o histórico da API
+        apiChatHistory = data.history;
+        
+        // Adiciona a resposta do bot à interface
+        addMessage(data.response);
     } catch (error) {
-        removeTypingIndicator(typingIndicator);
-        addMessage('Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.');
+        console.error('Erro ao conversar com o bot:', error);
+        removeTypingIndicator();
+        showError('Desculpe, tive um problema ao processar sua mensagem. Por favor, tente novamente.');
     } finally {
         // Reabilita o input e o botão após o processamento
         userInput.disabled = false;
         sendButton.disabled = false;
+        sendButton.textContent = 'Enviar';
         userInput.focus();
     }
 }
@@ -114,7 +136,10 @@ function showHistory() {
     backButton.onclick = () => {
         chatMessages.innerHTML = '';
         conversationHistory.forEach(msg => {
-            addMessage(msg.message, msg.isUser);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${msg.isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = msg.message;
+            chatMessages.appendChild(messageDiv);
         });
     };
     headerDiv.appendChild(backButton);
@@ -157,6 +182,13 @@ function addMessageGroup(subject, messages) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `history-message ${msg.isUser ? 'user-message' : 'bot-message'}`;
         messageDiv.textContent = msg.message;
+        
+        // Adiciona timestamp às mensagens no histórico
+        const timestampSpan = document.createElement('span');
+        timestampSpan.className = 'message-timestamp';
+        timestampSpan.textContent = msg.timestamp;
+        messageDiv.appendChild(timestampSpan);
+        
         chatMessages.appendChild(messageDiv);
     });
     
